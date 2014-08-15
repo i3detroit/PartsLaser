@@ -33,10 +33,28 @@ class PartsLaserSearch:
 	#If we can see it, we should return the x,y distance between the target and the laser
 	def getTargetDelta(self, targetData,retries):
 
-		#TODO: get from vision
+
+		#TODO: get the delta from vision
+		# we should loop for retries
 		target=(75.5,30.5)
-		#TODO: we should loop for retries and only return None if we can't fid the target
 		delta=(target[0]-self.__location[0],target[1]-self.__location[1])
+		#TODO: we should loop over all of the targets we can see. 
+		# If this is the closest we've been (or if the cache is stale?)
+		# we should store the servo location into the cache
+
+		
+		#TODO: if we're at (near?) the cached position and we can't see
+		# the target, we need to remove it from the cache
+
+		#TODO: if we can't see the target, but it is in the cache, we
+		# should compute a delta from the cached position
+		# _______________OR_____________
+		# When moving to a new target, we jump to the cached position 
+		# first. If it isn't there, clear the cache. This is probably
+		# a better choice, but requires more logic around the search
+		
+
+		#TODO: remove this, it simulates targets being out of sight
 		if math.sqrt(delta[0]*delta[0]+delta[1]*delta[1]) > 24:
 			return None
 		return delta

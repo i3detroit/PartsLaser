@@ -1,5 +1,8 @@
-#!/usr/bin/env python
+import Adafruit_BBIO.PWM as PWM
+import time
 import math
+import servo
+import numpy as np
 
 class PartsLaserSearch:
 	
@@ -12,18 +15,18 @@ class PartsLaserSearch:
 		self.__location=startLocation
 
 		#Init all searches to nothing
-		self.__xSearch=None
+		self.__xSearch=Noneaa`
 		self.__ySearch=None
 
 		#The min/max we can set for each search range
-		self.__xRange=(0,100)
-		self.__yRange=(0,100)
+		self.__xRange=(2.7,16.0)
+		self.__yRange=(2.7,16.0)
 
 		#First is the most we should ever adjust
 		#Second is the amount to adjust during pan/scan mode
 		#Third is the least we can adjust
-		self.__xResolution=(8,4,1)
-		self.__yResolution=(8,4,1)
+		self.__xResolution=(1,0.5,0.1)
+		self.__yResolution=(1,0.5,0.1)
 
 		print("Searching to",self.__targetData,"from",self.__location)
 
@@ -63,32 +66,57 @@ class PartsLaserSearch:
 	#Pan and Scan will leave the target in vision and return the current position, or return None
 	#TODO: If we could see the target, and now can, we should move back and do "something else"
 	def search(self):
-		target = self.panScanSearch(self.__targetData)
+		servos=servo.setupServos()
+
+		target = self.panScanSearch(self.__targetData,servos)
+
 		if target is None:
 			return False
+
+		servo.shutdownServos()
+		
 		return self.__searchCanSee(target)
 
 	#Pan and Scan will leave the target in vision and return the current position, or return None
-	def panScanSearch(self,targetData):
+	def panScanSearch(self,targetData,servos):
 		#We need to check the current location and not move if we cam see the target
         #This is basically a do/while loop, but it's easier to write this way :P
-		target=self.getTargetDelta(targetData,self.__waitFrames)
-		if target is not None:
-			return target
+		#target=self.getTargetDelta(targetData,self.__waitFrames)
+		#if target is not None:
+		#	return target
 
 		#we didn't find it. revert to pan/scan search
 		self.__xSearch=None
 		self.__ySearch=None
 
-		for x in range(self.__xRange[0],self.__xRange[1],self.__xResolution[1]):
-			for y in range(self.__yRange[0],self.__yRange[1],self.__yResolution[1]):
+		for x in np.arange(self.__xRange[0],self.__xRange[1],self.__xResolution[1]*2):
+			self.__location[0]=x
+			servos[0].servo_set_direct(x)
+
+			for y in np.arange(self.__yRange[0],self.__yRange[1],self.__yResolution[1]):
 				##TODO: this should actually move something
-				self.__location[0]=x
 				self.__location[1]=y
+				servos[1].servo_set_direct(y)
 				print("Scanning",self.__location)
+				time.sleep(0.1)
 				target=self.getTargetDelta(targetData,self.__waitFrames)
 				if target is not None:
 					return target
+
+			self.__location[0]=x+self.__xResolution[1]
+			servos[0].servo_set_direct(x)
+
+			for y in np.arange(self.__yRange[1],self.__yRange[0],-self.__yResolution[1]):
+				##TODO: this should actually move something
+				self.__location[1]=y
+				servos[1].servo_set_direct(y)
+				print("Scanning",self.__location)
+				time.sleep(0.05)
+				target=self.getTargetDelta(targetData,self.__waitFrames)
+				if target is not None:
+					return target
+
+
 		return None
 				
 
@@ -155,3 +183,19 @@ if __name__ == '__main__':
 	l=PartsLaserSearch([50,50],"doesn't matter")
 	while l.search() is True:
 		print("searching...")
+
+
+        #servo_h=Servo(H_SERVO,70.0)
+        #servo_v=Servo(V_SERVO,70.0)
+
+        #time.sleep(1)
+        #draw_box(servo_h,servo_v,6,0.1)
+
+        #search(servo_h,servo_v,"Andrew")
+
+        #time.sleep(1)
+
+        #PWM.stop(H_SERVO)
+        #PWM.stop(V_SERVO)
+        #PWM.cleanup()
+

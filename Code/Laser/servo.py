@@ -45,8 +45,8 @@ class Servo:
                 self.servo_setup()
 
 def setupServos():
-		servo_h=Servo(H_SERVO,70.0)
-		servo_v=Servo(V_SERVO,70.0)
+		servo_h=Servo(H_SERVO,100.0)
+		servo_v=Servo(V_SERVO,100.0)
 		return (servo_h,servo_v)
 
 def shutdownServos():

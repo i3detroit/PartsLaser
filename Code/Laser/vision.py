@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import numpy as np
-import cv2
+from gi.repository import Aravis
 import Image
 import zbar
 import time
@@ -12,11 +12,17 @@ class CameraException(Exception):
 
 class Vision(object):
 
-    def __init__(self,camera):
+    def __init__(self):
         # Open camera, and get image dimensions
-        self.cap = cv2.VideoCapture(camera)
-        self.width = int(self.cap.get(3))
-        self.height = int(self.cap.get(4))
+        Aravis.enable_interface('Fake')
+        self.camera = Aravis.Camera.new(None)
+        self.stream = self.camera.create_stream(None,None)
+        payload = self.camera.get_payload()
+        self.stream.push_buffer(Aravis.Buffer.new_allocate(payload))
+        x,y,w,h = self.camera.get_region()
+        self.width = w
+        self.height = h
+        self.camera.start_acquisition()
         
         # Set up scanner
         self.scanner = zbar.ImageScanner()
@@ -33,14 +39,12 @@ class Vision(object):
         updated = False
     
         # Capture frame-by-frame
-        ret, frame = self.cap.read()
-        if not ret:
-            raise CameraException('Dropped frame!')
-    
+        buffer = self.stream.pop_buffer()
+        frame = buffer.get_data()
+        self.stream.push_buffer(buffer)
+
         # zbar needs a monochrome image in PIL string format
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        pil_gray = Image.fromarray(gray).tostring()
-        image = zbar.Image(self.width, self.height, 'Y800', pil_gray)
+        image = zbar.Image(self.width, self.height, 'Y800', frame)
     
         # Scan image and annotate all the codes with outline, center, and data
         self.scanner.scan(image)
@@ -48,17 +52,8 @@ class Vision(object):
     
             # outline symbol
             ul,ur,lr,ll = symbol.location
-            #loc = np.array(symbol.location,np.int32)
-            #loc = loc.reshape((-1,1,2))
-            #cv2.polylines(frame,[loc],True,(0,0,255),2)
-            
-            # draw a circle at the center of the symbol
             avgx = (ul[0]+ur[0]+lr[0]+ll[0])/4
             avgy = (ul[1]+ur[1]+lr[1]+ll[1])/4
-            #cv2.circle(frame,(avgx,avgy),5,(0,255,0),2)
-    
-            # label the symbol center with its data
-            #cv2.putText(frame,symbol.data,(avgx,avgy),cv2.FONT_HERSHEY_SIMPLEX,1,(255,255,0),2)
     
             # update cache
             try:
@@ -67,32 +62,32 @@ class Vision(object):
                     self.cache[symbol.data] = (avgx,avgy)
                     updated = True
                     print '%s moved to (%.1f,%.1f)'%(symbol.data,avgx,avgy)
+                    Image.fromstring('L',(self.width,self.height),frame).\
+                            save('codes/%s_%s_%s.png'%(symbol.data,avgx,avgy))
             except KeyError:
                 self.cache[symbol.data] = (avgx,avgy)
                 updated = True
                 print 'New symbol %s at (%.1f,%.1f)'%(symbol.data,avgx,avgy)
+                Image.fromstring('L',(self.width,self.height),frame).\
+                        save('codes/%s_%s_%s.png'%(symbol.data,avgx,avgy))
     
         # Display the resulting frame and annotate with framerate
         etime = time.time()
         fps = 1.0/(etime - stime)
         print '%.1ffps'%fps
-        #cv2.putText(frame,'%.1ffps'%fps,(5,15),cv2.FONT_HERSHEY_SIMPLEX,0.5,(255,0,0),1)
-        #cv2.imshow('frame',frame)
-        #cv2.destroyAllWindows()
         if updated:
             return self.cache
         else:
             return None
 
-    def cleanup():
+    def cleanup(self):
         # When everything done, release the capture
-        cap.release()
+        self.camera.stop_acquisition()
 
 if __name__ == '__main__':
     from pprint import pprint
     import sys
-    print sys.argv[1]
-    v = Vision(int(sys.argv[1]))
+    v = Vision()
     while(True):
         cache = v.updateCache()
         if cache is not None:
